@@ -2,79 +2,110 @@
 #include "sensor_msgs/NavSatFix.h"
 #include "math.h"
 
-// Definizione della costante pi greco
-const double PI = 3.14159265358979323846;
+struct GPSPoint {
+    double latitude;  // in degrees
+    double longitude; // in degrees
+    double altitude;  // in meters
+};
 
-double latitude;
-double longitude;
-double altitude;
-double A = 6378000;  //equatorial earth radius
-double B = 6357000;  //polar earth radius
-float E = 0.0167;   //earth eccentricity
-double ecef[3];     // ECEF  cartesian coordinates wrt earth centre
-double ref_ecef[3] = {-100889.434334, -33666.072352, 6336240.767261};
+struct ECEFPoint {
+    double x;
+    double y;
+    double z;
+};
 
-void ECEF_to_ENU(const double ecef[3], const double ref_ecef[3], double enu[3]) {
+struct ENUPoint {
+    double e;
+    double n;
+    double u;
+};
 
-    // Calcola la latitudine e la longitudine del punto di riferimento
-    double latit = std::atan2(ref_ecef[2], std::sqrt(ref_ecef[0] * ref_ecef[0] + ref_ecef[1] * ref_ecef[1]));
-    double longit = std::atan2(ref_ecef[1], ref_ecef[0]);
+ENUPoint prev_enu{45.441519,15.122844,-17.458665};
+double heading;
 
-    // Calcola la matrice di rotazione da ECEF a ENU
-    double rotation_matrix[3][3] = {
-        {-std::sin(longit), std::cos(longit), 0},
-        {-std::sin(latit) * std::cos(longit), -std::sin(latit) * std::sin(longit), std::cos(latit)},
-        {std::cos(latit) * std::cos(longit), std::cos(latit) * std::sin(longit), std::sin(latit)}
-    };
+// Reference point (latitude, longitude, altitude)
+double refLat = 45.477210;   
+double refLon = 9.226158;    
+double refAlt = 168.276000+ 6378137.0;
 
-    // Calcola il vettore di traslazione da ECEF a ENU
-    double translation_vector[3] = {-ref_ecef[0], -ref_ecef[1], -ref_ecef[2]};
 
-    // Moltiplica le coordinate ECEF del punto di interesse per la matrice di rotazione e aggiungi il vettore di traslazione
-    for (int i = 0; i < 3; ++i) {
-        enu[i] = 0;
-        for (int j = 0; j < 3; ++j) {
-            enu[i] += rotation_matrix[i][j] * (ecef[j] + translation_vector[j]);
-        }
-    }
+
+const double a = 6378137.0;     // Semi-major axis of Earth ellipsoid in meters
+const double f = 1 / 298.257223; // Flattening
+const double b = a * (1 - f);   // Semi-minor axis
+
+// Convert degrees to radians
+double toRadians(double degrees) {
+    return degrees * M_PI / 180.0;
 }
 
+// Convert GPS coordinates to ECEF coordinates
+ECEFPoint convertGPSToECEF(const GPSPoint& gps) {
+    double latitude = toRadians(gps.latitude);
+    double longitude = toRadians(gps.longitude);
 
+    double N = a / sqrt(1 - pow(sin(latitude), 2) * pow(f, 2));
 
+    ECEFPoint ecef;
+    ecef.x = (N + gps.altitude) * cos(latitude) * cos(longitude);
+    ecef.y = (N + gps.altitude) * cos(latitude) * sin(longitude);
+    ecef.z = (N * (1 - pow(f, 2)) + gps.altitude) * sin(latitude);
+
+    return ecef;
+}
+
+ENUPoint convertECEFToENU(const ECEFPoint& ecef) {
+    double refLatRad = toRadians(refLat);
+    double refLonRad = toRadians(refLon);
+    
+
+    double sinLat = sin(refLatRad);
+    double cosLat = cos(refLatRad);
+    double sinLon = sin(refLonRad);
+    double cosLon = cos(refLonRad);
+
+    ENUPoint enu;
+
+    double dx = ecef.x - refAlt * cosLat * cosLon;
+    double dy = ecef.y - refAlt * cosLat * sinLon;
+    double dz = ecef.z - refAlt * sinLat;
+
+    enu.e = -sinLon * dx + cosLon * dy;
+    enu.n = -sinLat * cosLon * dx - sinLat * sinLon * dy + cosLat * dz;
+    enu.u = cosLat * cosLon * dx + cosLat * sinLon * dy + sinLat * dz;
+
+    return enu;
+}
 
 
 void Callback(const sensor_msgs::NavSatFix::ConstPtr& msg) {
 
-    //importing variables (latitude and longitude converted in degrees)
-    latitude = (msg->latitude) * 2.0 * PI /180.0;
-    longitude = (msg->longitude) * 2.0 * PI /180.0;
-    altitude = (msg->altitude);
-    //ROS_INFO("Latitude: %f, Longitude: %f, Altitude: %f ", latitude, longitude, altitude);
+    
+    GPSPoint gps{msg->latitude, msg->longitude, msg->altitude};
 
+    // Convert GPS coordinates to ECEF
+    ECEFPoint ecef = convertGPSToECEF(gps);
+    
+    //ROS_INFO("x: %f y: %f z:%f ", ecef.x , ecef.y , ecef.z);
 
-    //computation of the local earth radius
-    double N = A / sqrt(1 - (E * E) * sin(latitude) * sin(latitude));
+    ENUPoint enu = convertECEFToENU(ecef);
 
+    
 
-    //GPS to ECEF
-    ecef[0] = (N + altitude) * cos(latitude) * cos(longitude);
-    ecef[1] = (N + altitude) * cos(latitude) * sin(longitude);
-    ecef[2] = (N * ((B * B) / (A * A)) + altitude) * sin(latitude);
+    heading = atan( ( enu.n - prev_enu.n ) / ( enu.e - prev_enu.e ) );
+    ROS_INFO("e: %f n: %f u:%f h: %f", enu.e , enu.n , enu.u , heading);
+    prev_enu = enu;
 
-    double temp = sqrt(ecef[0] * ecef[0] + ecef[1] * ecef[1] + ecef[2] * ecef[2]);
-    ROS_INFO("radius from calculation: %f", temp);
 }
 
+int main(int argc, char **argv){
 
+        
+        ros::init(argc, argv, "gps_to_odom");
+        ros::NodeHandle n;
+        ros::Subscriber gps_to_odom = n.subscribe("/fix", 10, Callback);
+        ros::spin();
 
-
-int main(int argc, char** argv) {
-
-    ros::init(argc, argv, "gps_to_odom");
-    ros::NodeHandle n;
-    ros::Subscriber gps_to_odom = n.subscribe("/fix", 10, Callback);
-    ros::spin();
-
-    return 0;
+        return 0;
 
 }
