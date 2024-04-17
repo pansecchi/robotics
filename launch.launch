@@ -25,7 +25,12 @@
         <remap from="input_odom" to="odom"/>
     </node>
 
-    
+    <node name="lidar_remap" pkg="first_project" type="lidar_remap" output="screen">
+        </node>
+        
+        
+    <node name="rviz" pkg="rviz" type="rviz" />
+
 
 
 
