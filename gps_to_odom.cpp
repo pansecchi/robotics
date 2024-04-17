@@ -26,12 +26,10 @@ struct ENUPoint {
 ENUPoint prev_enu{45.441519,15.122844,-17.458665};
 double heading;
 
-// Reference point (latitude, longitude, altitude)
-double refLat = 45.477210;   
-double refLon = 9.226158;    
-double refAlt = 168.276000+ 6378137.0;
 
-
+double refLat = 0.00;   
+double refLon = 0.00;    
+double refAlt = 0.00;
 
 const double a = 6378137.0;     // Semi-major axis of Earth ellipsoid in meters
 const double f = 1 / 298.257223; // Flattening
@@ -43,6 +41,7 @@ double toRadians(double degrees) {
 }
 
 // Convert GPS coordinates to ECEF coordinates
+
 ECEFPoint convertGPSToECEF(const GPSPoint& gps) {
     double latitude = toRadians(gps.latitude);
     double longitude = toRadians(gps.longitude);
@@ -87,21 +86,25 @@ double calculateDirection(double x1, double y1, double x2, double y2) {
 
 ros::Publisher odom_pub;
 
+
+
+
 void Callback(const sensor_msgs::NavSatFix::ConstPtr& msg) {
 
-    
     GPSPoint gps{msg->latitude, msg->longitude, msg->altitude};
 
     // Convert GPS coordinates to ECEF
     ECEFPoint ecef = convertGPSToECEF(gps);
-    
-    //ROS_INFO("x: %f y: %f z:%f ", ecef.x , ecef.y , ecef.z);
 
+    /////////////////////////////////////////////////////////////////////////////////////////////
+    //ROS_INFO("x: %f y: %f z:%f ", ecef.x , ecef.y , ecef.z);
     ENUPoint enu = convertECEFToENU(ecef);
 
-    /*ROS_INFO("e: %f n: %f u:%f h: %f", enu.e , enu.n , enu.u , heading);*/
+    /////////////////////////////////////////////////////////////////////////////////////////////
+    
     
     double direction = calculateDirection(prev_enu.e, prev_enu.n, enu.e, enu.n);
+   //ROS_INFO("e: %f n: %f u:%f direction: %f", enu.e , enu.n , enu.u , direction);
 
     nav_msgs::Odometry odom;
     odom.header.stamp = ros::Time::now();
@@ -130,22 +133,33 @@ void Callback(const sensor_msgs::NavSatFix::ConstPtr& msg) {
 
     // Publish the message 
     odom_pub.publish(odom);
-
+    // Print the results
+    ROS_INFO("Position (E, N, U, Dir) : (%f, %f, %f ,%f)", enu.e, enu.n, enu.u, direction);
     prev_enu = enu;
 
 }
 
-int main(int argc, char **argv){
 
-        
+
+int main(int argc, char **argv){
+    
         ros::init(argc, argv, "gps_to_odom");
         ros::NodeHandle n;
 
+    
+        ///////////////////////////////////////////////////////////
+        // Load parameters from launch file
+        n.getParam("/reflat", refLat);
+        n.getParam("/reflon", refLon);
+        n.getParam("/refalt", refAlt);
+        //////////////////////////////////////////////////////////
+
+ 
         ros::Subscriber gps_to_odom = n.subscribe("/fix", 10, Callback);
         odom_pub = n.advertise<nav_msgs::Odometry>("gps_odom", 10);
-
         ros::spin();
 
         return 0;
 
 }
+
