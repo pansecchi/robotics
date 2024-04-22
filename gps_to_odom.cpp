@@ -23,7 +23,7 @@ struct ENUPoint {
     double u;
 };
 
-ENUPoint prev_enu{45.441519,15.122844,-17.458665};
+ENUPoint prev_enu{0,0,0};
 double heading;
 
 
@@ -76,6 +76,10 @@ ENUPoint convertECEFToENU(const ECEFPoint& ecef) {
     enu.n = -sinLat * cosLon * dx - sinLat * sinLon * dy + cosLat * dz;
     enu.u = cosLat * cosLon * dx + cosLat * sinLon * dy + sinLat * dz;
 
+
+
+    
+
     return enu;
 }
 
@@ -102,7 +106,15 @@ void Callback(const sensor_msgs::NavSatFix::ConstPtr& msg) {
 
     /////////////////////////////////////////////////////////////////////////////////////////////
     
-    
+    double angle = 2.2689;
+    enu.e = enu.e - 45.444;
+    enu.n = enu.n - 15.302;
+
+    double xTrasl = (enu.e * cos(angle) - enu.n * sin(angle));
+    double yTrasl = (enu.e * sin(angle) + enu.n * cos(angle));
+    enu.e = xTrasl;
+    enu.n = yTrasl;
+
     double direction = calculateDirection(prev_enu.e, prev_enu.n, enu.e, enu.n);
    //ROS_INFO("e: %f n: %f u:%f direction: %f", enu.e , enu.n , enu.u , direction);
 
@@ -111,10 +123,12 @@ void Callback(const sensor_msgs::NavSatFix::ConstPtr& msg) {
     odom.header.frame_id = "odom";
     odom.child_frame_id = "base_link";
 
+  
     // Position
+
     odom.pose.pose.position.x = enu.e;
     odom.pose.pose.position.y = enu.n;
-    odom.pose.pose.position.z = enu.u;
+    odom.pose.pose.position.z = 0.0;
 
     // Orientation (quaternion)
     double theta = direction;  // Angle in radians
@@ -134,7 +148,7 @@ void Callback(const sensor_msgs::NavSatFix::ConstPtr& msg) {
     // Publish the message 
     odom_pub.publish(odom);
     // Print the results
-    ROS_INFO("Position (E, N, U, Dir) : (%f, %f, %f ,%f)", enu.e, enu.n, enu.u, direction);
+    
     prev_enu = enu;
 
 }
