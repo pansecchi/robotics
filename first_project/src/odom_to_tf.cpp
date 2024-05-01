@@ -7,12 +7,12 @@ std::string root_frame;
 std::string child_frame;
 
 void odomCallback(const nav_msgs::Odometry::ConstPtr& msg) {
-
     static tf2_ros::TransformBroadcaster tf_broadcaster;
 
     // Publish transform
     geometry_msgs::TransformStamped odom_tf;
     odom_tf.header = msg->header;
+    odom_tf.header.frame_id = root_frame;
     odom_tf.child_frame_id = child_frame;
     odom_tf.transform.translation.x = msg->pose.pose.position.x;
     odom_tf.transform.translation.y = msg->pose.pose.position.y;
@@ -24,7 +24,6 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr& msg) {
 }
 
 int main(int argc, char** argv) {
-
     ros::init(argc, argv, "odom_to_tf");
     ros::NodeHandle n;
     ros::NodeHandle nh("~");
@@ -39,5 +38,4 @@ int main(int argc, char** argv) {
     ros::spin();
 
     return 0;
-
 }
