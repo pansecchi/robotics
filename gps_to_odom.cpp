@@ -106,7 +106,7 @@ void Callback(const sensor_msgs::NavSatFix::ConstPtr& msg) {
 
     /////////////////////////////////////////////////////////////////////////////////////////////
     
-    double angle = 2.2689;
+    double angle = 2.235;
     enu.e = enu.e - 45.444;
     enu.n = enu.n - 15.302;
 
